@@ -42,21 +42,22 @@ final class ProfileImageViewModel: ObservableObject {
         case failure(Error)
     }
     
-    private func loadImage(from selection: PhotosPickerItem) async throws {
-        imageState = .loading(selection.loadTransferable(type: ProfileImage.self))
+    private func loadImage(from selection: PhotosPickerItem) async {
+        imageState = .loading
         
-        do {
+         do {
             if let profileImage = try await selection.loadTransferable(type: ProfileImage.self) {
+                // Step 3: If successful, set the state to success with the loaded image.
                 imageState = .success(profileImage.image)
             } else {
+                // Handle the case where loading returned nil.
                 imageState = .empty
             }
         } catch {
-            // If an error occurs, update the imageState with the failure.
+            // Step 4: If there's an error, set the state to failure.
             imageState = .failure(error)
         }
     }
-}
 
 
 struct ProfileImage: Transferable {
