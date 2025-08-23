@@ -1,27 +1,20 @@
-//
+
 //  PhotosSelectorView.swift
 //  PhotosSelector
-//
-//  This is a complete and corrected version of the PhotosSelector app.
-//  It uses SwiftUI's PhotosPicker and the Transferable protocol to allow
-//  a user to select an image from their photo library. The image is
-//  loaded asynchronously and converted to a platform-specific image type
-//  (NSImage on macOS and UIImage on iOS) before being displayed.
-//
 
 import SwiftUI
 import PhotosUI
 
-// MARK: - ViewModel
 
-// The ViewModel handles the state and logic for the PhotosSelectorView.
+
+
 @MainActor
 final class ProfileImageViewModel: ObservableObject {
     
-    // The currently selected PhotosPickerItem. This is what the PhotosPicker binds to.
+   
     @Published var imageSelection: PhotosPickerItem? = nil {
         didSet {
-            // When the selection changes, we trigger the image loading process.
+           
             if let imageSelection {
                 Task {
                     try await loadImage(from: imageSelection)
@@ -43,18 +36,13 @@ final class ProfileImageViewModel: ObservableObject {
         case failure(Error)
     }
     
-    // Asynchronously loads the image data from the selected PhotosPickerItem.
     private func loadImage(from selection: PhotosPickerItem) async throws {
-        // We set the state to loading immediately.
         imageState = .loading(selection.loadTransferable(type: ProfileImage.self))
         
-        // Use a Task to perform the asynchronous loading.
         do {
             if let profileImage = try await selection.loadTransferable(type: ProfileImage.self) {
-                // If successful, update the imageState with the loaded image.
                 imageState = .success(profileImage.image)
             } else {
-                // Handle the case where loading succeeded but returned nil.
                 imageState = .empty
             }
         } catch {
@@ -64,23 +52,17 @@ final class ProfileImageViewModel: ObservableObject {
     }
 }
 
-// MARK: - Transferable ProfileImage
 
-// A custom type that conforms to the Transferable protocol to handle
-// platform-specific image conversion.
 struct ProfileImage: Transferable {
     let image: Image
     
-    // An enum for custom transfer errors.
     enum TransferError: Error {
         case importFailed
     }
     
-    // Defines how the data for this type is handled for transfer.
     static var transferRepresentation: some TransferRepresentation {
         DataRepresentation(importedContentType: .image) { data in
             #if canImport(AppKit)
-            // For macOS, import as NSImage.
             guard let nsImage = NSImage(data: data) else {
                 throw TransferError.importFailed
             }
