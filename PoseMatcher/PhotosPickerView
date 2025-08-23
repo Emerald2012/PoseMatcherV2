@@ -5,9 +5,14 @@ struct PhotosSelector: View {
 @State var selectedItems: [PhotosPickerItem] = []
 
 var body: some View {
-PhotosPicker(selection: $selectedItems, matching: .images) {
-    Text("Select a Photo")
+CircularProfileImage(imageState: viewModel.imageState).overlay(alignment: .bottomTrailing) { 
+PhotosPicker(selection: $viewModel.imageSelection, matching: .images, photoLibrary: .shared()) {
+    Image(systemName: "pencil.circle.fill")
+        .symbolRenderingMode(.multicolor)
+        .font(.system(size:30))
+        .foregroundColor(.accentColor)
     }
+.buttonStyle(.borderless)
   }
 }
 
