@@ -1,18 +1,165 @@
+//
+//  PhotosSelectorView.swift
+//  PhotosSelector
+//
+//  This is a complete and corrected version of the PhotosSelector app.
+//  It uses SwiftUI's PhotosPicker and the Transferable protocol to allow
+//  a user to select an image from their photo library. The image is
+//  loaded asynchronously and converted to a platform-specific image type
+//  (NSImage on macOS and UIImage on iOS) before being displayed.
+//
+
 import SwiftUI
 import PhotosUI
 
-struct PhotosSelector: View {
-@State var selectedItems: [PhotosPickerItem] = []
+// MARK: - ViewModel
 
-var body: some View {
-CircularProfileImage(imageState: viewModel.imageState).overlay(alignment: .bottomTrailing) { 
-PhotosPicker(selection: $viewModel.imageSelection, matching: .images, photoLibrary: .shared()) {
-    Image(systemName: "pencil.circle.fill")
-        .symbolRenderingMode(.multicolor)
-        .font(.system(size:30))
-        .foregroundColor(.accentColor)
+// The ViewModel handles the state and logic for the PhotosSelectorView.
+@MainActor
+final class ProfileImageViewModel: ObservableObject {
+    
+    // The currently selected PhotosPickerItem. This is what the PhotosPicker binds to.
+    @Published var imageSelection: PhotosPickerItem? = nil {
+        didSet {
+            // When the selection changes, we trigger the image loading process.
+            if let imageSelection {
+                Task {
+                    try await loadImage(from: imageSelection)
+                }
+            } else {
+                imageState = .empty
+            }
+        }
     }
-.buttonStyle(.borderless)
-  }
+    
+  
+    @Published private(set) var imageState: ImageState = .empty
+    
+    // An enum to represent the different states of the image.
+    enum ImageState {
+        case empty
+        case success(Image)
+        case loading(Progress)
+        case failure(Error)
+    }
+    
+    // Asynchronously loads the image data from the selected PhotosPickerItem.
+    private func loadImage(from selection: PhotosPickerItem) async throws {
+        // We set the state to loading immediately.
+        imageState = .loading(selection.loadTransferable(type: ProfileImage.self))
+        
+        // Use a Task to perform the asynchronous loading.
+        do {
+            if let profileImage = try await selection.loadTransferable(type: ProfileImage.self) {
+                // If successful, update the imageState with the loaded image.
+                imageState = .success(profileImage.image)
+            } else {
+                // Handle the case where loading succeeded but returned nil.
+                imageState = .empty
+            }
+        } catch {
+            // If an error occurs, update the imageState with the failure.
+            imageState = .failure(error)
+        }
+    }
+}
+
+// MARK: - Transferable ProfileImage
+
+// A custom type that conforms to the Transferable protocol to handle
+// platform-specific image conversion.
+struct ProfileImage: Transferable {
+    let image: Image
+    
+    // An enum for custom transfer errors.
+    enum TransferError: Error {
+        case importFailed
+    }
+    
+    // Defines how the data for this type is handled for transfer.
+    static var transferRepresentation: some TransferRepresentation {
+        DataRepresentation(importedContentType: .image) { data in
+            #if canImport(AppKit)
+            // For macOS, import as NSImage.
+            guard let nsImage = NSImage(data: data) else {
+                throw TransferError.importFailed
+            }
+            let image = Image(nsImage: nsImage)
+            return ProfileImage(image: image)
+            #elseif canImport(UIKit)
+            // For iOS/iPadOS, import as UIImage.
+            guard let uiImage = UIImage(data: data) else {
+                throw TransferError.importFailed
+            }
+            let image = Image(uiImage: uiImage)
+            return ProfileImage(image: image)
+            #else
+            throw TransferError.importFailed
+            #endif
+        }
+    }
+}
+
+// MARK: - CircularProfileImage
+
+// A simple view to display the profile image based on the ViewModel's state.
+struct CircularProfileImage: View {
+    let imageState: ProfileImageViewModel.ImageState
+    
+    var body: some View {
+        switch imageState {
+        case .empty:
+            Image(systemName: "person.circle.fill")
+                .resizable()
+                .scaledToFill()
+                .frame(width: 100, height: 100)
+                .foregroundColor(.accentColor)
+                .background(.gray)
+                .clipShape(Circle())
+        case .success(let image):
+            image
+                .resizable()
+                .scaledToFill()
+                .frame(width: 100, height: 100)
+                .clipShape(Circle())
+        case .loading(let progress):
+            ProgressView(value: progress.fractionCompleted)
+                .progressViewStyle(.circular)
+                .frame(width: 100, height: 100)
+                .background(.gray)
+                .clipShape(Circle())
+        case .failure(_):
+            Image(systemName: "exclamationmark.triangle.fill")
+                .resizable()
+                .scaledToFill()
+                .frame(width: 100, height: 100)
+                .foregroundColor(.red)
+                .background(.gray)
+                .clipShape(Circle())
+        }
+    }
+}
+
+
+struct PhotosSelector: View {
+    
+    // The ViewModel instance for this view.
+    @StateObject private var viewModel = ProfileImageViewModel()
+    
+    var body: some View {
+        VStack {
+            CircularProfileImage(imageState: viewModel.imageState)
+                .overlay(alignment: .bottomTrailing) {
+                    PhotosPicker(selection: $viewModel.imageSelection, matching: .images, photoLibrary: .shared()) {
+                        Image(systemName: "pencil.circle.fill")
+                            .symbolRenderingMode(.multicolor)
+                            .font(.system(size: 30))
+                            .foregroundColor(.accentColor)
+                    }
+                    .buttonStyle(.borderless)
+                }
+        }
+        .padding()
+    }
 }
 
