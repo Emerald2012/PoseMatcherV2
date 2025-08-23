@@ -5,34 +5,33 @@
 //  Created by Carsten Anand on 23/8/25.
 //
 
-
-//  PhotosSelectorView.swift
-//  PhotosSelector
-
 import SwiftUI
 import PhotosUI
+import UIKit
+import Vision
 
-
+// MARK: - ProfileImageViewModel
 
 @MainActor
 final class ProfileImageViewModel: ObservableObject {
     
-   
     @Published var imageSelection: PhotosPickerItem? = nil {
         didSet {
-           
             if let imageSelection {
                 Task {
-                    try await loadImage(from: imageSelection)
+                    // Call the new load and process function
+                    try await loadAndProcessImage(from: imageSelection)
                 }
             } else {
                 imageState = .empty
+                staticPosePath = nil // Clear the path when no image is selected
             }
         }
     }
     
-  
     @Published private(set) var imageState: ImageState = .empty
+    // A new published property to store the CGPath
+    @Published private(set) var staticPosePath: CGPath? = nil 
     
     // An enum to represent the different states of the image.
     enum ImageState {
@@ -42,26 +41,83 @@ final class ProfileImageViewModel: ObservableObject {
         case failure(Error)
     }
     
-    private func loadImage(from selection: PhotosPickerItem) async {
+    // Corrected function to handle both loading and processing
+    private func loadAndProcessImage(from selection: PhotosPickerItem) async throws {
         imageState = .loading
-        
-         do {
-            if let profileImage = try await selection.loadTransferable(type: ProfileImage.self) {
-                // Step 3: If successful, set the state to success with the loaded image.
-                imageState = .success(profileImage.image)
+        do {
+            // Load the UIImage directly from the selection
+            if let uiImage = try await selection.loadTransferable(type: UIImage.self) {
+                // Set the SwiftUI Image state
+                imageState = .success(Image(uiImage: uiImage))
+                
+                // Perform pose detection and create the static path
+                let path = await createSkeletonPath(from: uiImage)
+                self.staticPosePath = path
+                
             } else {
-                // Handle the case where loading returned nil.
                 imageState = .empty
             }
         } catch {
-            // Step 4: If there's an error, set the state to failure.
             imageState = .failure(error)
         }
     }
 
+    private func createSkeletonPath(from image: UIImage) async -> CGPath? {
+        guard let cgImage = image.cgImage else { return nil }
 
+        return await withCheckedContinuation { continuation in
+            let request = VNDetectHumanBodyPoseRequest { request, error in
+                guard let observation = request.results?.first as? VNHumanBodyPoseObservation else {
+                    continuation.resume(returning: nil)
+                    return
+                }
+                do {
+                    let recognizedPoints = try observation.recognizedPoints(.all)
+                    let path = self.buildPath(from: recognizedPoints, imageSize: image.size)
+                    continuation.resume(returning: path)
+                } catch {
+                    continuation.resume(returning: nil)
+                }
+            }
+            let handler = VNImageRequestHandler(cgImage: cgImage, options: [:])
+            try? handler.perform([request])
+        }
+    }
+    
+    private func buildPath(from recognizedPoints: [VNHumanBodyPoseObservation.JointName : VNRecognizedPoint], imageSize: CGSize) -> CGPath {
+        let path = CGMutablePath()
+        let connections: [(from: VNHumanBodyPoseObservation.JointName, to: VNHumanBodyPoseObservation.JointName)] = [
+            (.rightAnkle, .rightKnee), (.rightKnee, .rightHip),
+            (.leftAnkle, .leftKnee), (.leftKnee, .leftHip),
+            (.rightHip, .leftHip), (.rightHip, .rightShoulder), (.leftHip, .leftShoulder),
+            (.rightShoulder, .leftShoulder), (.rightShoulder, .rightElbow), (.rightElbow, .rightWrist),
+            (.leftShoulder, .leftElbow), (.leftElbow, .leftWrist),
+            (.rightShoulder, .neck), (.leftShoulder, .neck),
+            (.neck, .nose)
+        ]
+
+        for connection in connections {
+            if let from = recognizedPoints[connection.from], let to = recognizedPoints[connection.to] {
+                // Only draw if confidence is high for both points
+                if from.confidence > 0.3 && to.confidence > 0.3 {
+                    let fromPoint = VNImagePointForNormalizedPoint(from.location, Int(imageSize.width), Int(imageSize.height))
+                    let toPoint = VNImagePointForNormalizedPoint(to.location, Int(imageSize.width), Int(imageSize.height))
+                    
+                    path.move(to: fromPoint)
+                    path.addLine(to: toPoint)
+                }
+            }
+        }
+        return path
+    }
+}
+
+// MARK: - ProfileImage (optional, but corrected for Transferable)
+
+// This struct is no longer necessary if you use UIImage.self, but is kept for completeness.
+// The transfer representation is corrected to ensure it returns a valid UIImage.
 struct ProfileImage: Transferable {
-    let image: Image
+    let image: UIImage
     
     enum TransferError: Error {
         case importFailed
@@ -69,19 +125,11 @@ struct ProfileImage: Transferable {
     
     static var transferRepresentation: some TransferRepresentation {
         DataRepresentation(importedContentType: .image) { data in
-            #if canImport(AppKit)
-            guard let nsImage = NSImage(data: data) else {
-                throw TransferError.importFailed
-            }
-            let image = Image(nsImage: nsImage)
-            return ProfileImage(image: image)
-            #elseif canImport(UIKit)
-            // For iOS/iPadOS, import as UIImage.
+            #if canImport(UIKit)
             guard let uiImage = UIImage(data: data) else {
                 throw TransferError.importFailed
             }
-            let image = Image(uiImage: uiImage)
-            return ProfileImage(image: image)
+            return ProfileImage(image: uiImage)
             #else
             throw TransferError.importFailed
             #endif
@@ -129,6 +177,7 @@ struct CircularProfileImage: View {
     }
 }
 
+// MARK: - PhotosSelector
 
 struct PhotosSelector: View {
     
@@ -151,5 +200,3 @@ struct PhotosSelector: View {
         .padding()
     }
 }
-
-
