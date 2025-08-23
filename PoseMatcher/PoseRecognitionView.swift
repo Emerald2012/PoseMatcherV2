@@ -14,14 +14,14 @@ struct PoseRecognitionView: View {
     @State var inputImage: String
     
     var body: some View {
-        Text("Text")
-            .onAppear{
-                PoseRecogniser(inputImage: inputImage)
-            }
+//        Text("Text")
+//            .onAppear{
+//                PoseRecogniser(inputImage: inputImage)
+//            }
         
     }
 }
 
 #Preview {
-    PoseRecognitionView(inputImage: "tristan")
+    PoseRecognitionView(inputImage: "Pose")
 }

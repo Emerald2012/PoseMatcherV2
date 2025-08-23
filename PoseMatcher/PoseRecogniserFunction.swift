@@ -10,9 +10,8 @@ import Vision
 
 
 
-func PoseRecogniser(inputImage: String) {
-    let fileUrl = URL(fileURLWithPath: inputImage)
-    let requestHandler = VNImageRequestHandler(url: fileUrl)
+func PoseRecogniser(inputImage: CGImage) {
+    let requestHandler = VNImageRequestHandler(cgImage: inputImage, options: [:])
     let request = VNDetectHumanBodyPoseRequest { request, error in
         if let observations = request.results as? [VNHumanBodyPoseObservation] {
             for observation in observations {
