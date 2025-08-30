@@ -190,10 +190,10 @@ final class ProfileImageViewModel: ObservableObject {
     
     // Corrected function to handle both loading and processing
     private func loadAndProcessImage(from selection: PhotosPickerItem) async throws {
-        imageState = .loading
+        imageState = .loading(.init(totalUnitCount: 0))
         do {
             // Load the UIImage directly from the selection
-            if let uiImage = try await selection.loadTransferable(type: UIImage.self) {
+            if let data = try await selection.loadTransferable(type: Data.self), let uiImage = UIImage(data: data) {
                 // Set the SwiftUI Image state
                 imageState = .success(Image(uiImage: uiImage))
                 
