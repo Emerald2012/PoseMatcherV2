@@ -1,134 +1,105 @@
-//
-//  PoseRecognitionView.swift
-//  PoseMatcher
-//
-//  Created by Carsten Anand on 16/8/25.
-//
-
 import SwiftUI
 import Vision
 
-
-struct ViewController: UIViewRepresentable {
-    
-    var imageView: UIImageView!
-    
-    func makeUIView(context: Context) -> UIImageView {
-        let imageView = UIImageView()
-        imageView.contentMode = .scaleAspectFit
-        imageView.translatesAutoresizingMaskIntoConstraints = false
-        imageView.image = UIImage(resource: .image1)
-        return imageView
-        
-    }
-    
-    func updateUIView(_ uiView: UIViewType, context: Context) {
-        NSLayoutConstraint.activate([
-            imageView.centerXAnchor.constraint(equalTo: uiView.centerXAnchor),
-            imageView.centerYAnchor.constraint(equalTo: uiView.centerYAnchor),
-            imageView.widthAnchor.constraint(equalTo: uiView.widthAnchor, multiplier: 0.9),
-            imageView.heightAnchor.constraint(equalTo: imageView.widthAnchor)
-        ])
-        detectHumanBodyPose(in: imageView.image!)
-        
-    }
-    
-    func detectHumanBodyPose(in image: UIImage) {
-        guard let cgImage = image.cgImage else { return }
-        
-        let request = VNDetectHumanBodyPoseRequest(completionHandler: { (request, error) in
-            guard let results = request.results as? [VNHumanBodyPoseObservation] else {
-                print("no human detected")
-                return
-            }
-            DispatchQueue.main.async {
-                self.drawBodyJoints(from: results)
-                
-            }
-        })
-        
-        let requestHandler = VNImageRequestHandler(cgImage: cgImage, options: [:])
-        DispatchQueue.global(qos: .userInitiated).async {
-            do {
-                try requestHandler.perform([request])
-            } catch {
-                print("failed to perform request: \(error)")
-            }
-        }
-    }
-    
-    func drawBodyJoints(from observations: [VNHumanBodyPoseObservation]) {
-        imageView.subviews.forEach { $0.removeFromSuperview() }
-        
-        guard let image = imageView.image else {
-            print("No image found in imageView")
-            return
-        }
-        let imageViewSize = imageView.bounds.size
-        let imageSize = image.size
-        let scale = min(imageViewSize.width, imageViewSize.height / imageSize.height)
-        
-        let scaledImageSize = CGSize(width: imageSize.width * scale, height: imageSize.height * scale)
-        let imageOrigin = CGPoint(x: (imageViewSize.width - scaledImageSize.width) / 2, y: (imageViewSize.height - scaledImageSize.height) / 2 )
-        
-        for observation in observations {
-            var jointPoints: [CGPoint] = []
-            
-            for jointName in observation.availableJointNames {
-                if let recognizedPoint = try? observation.recognizedPoint(jointName) {
-                    let xPosition = imageOrigin.x + recognizedPoint.location.x * scaledImageSize.width
-                    let yPosition = imageOrigin.y + (1 - recognizedPoint.location.y) * scaledImageSize.height
-                    let jointPoint = CGPoint(x: xPosition, y: yPosition)
-                    jointPoints.append(jointPoint)
-                }
-            }
-            let jointConnections: [(VNHumanBodyPoseObservation.JointName, VNHumanBodyPoseObservation.JointName)] = [
-                (.leftShoulder, .rightShoulder),
-                (.leftShoulder, .leftElbow),
-                (.leftElbow, .leftWrist),
-                (.rightShoulder, .rightElbow),
-                (.rightShoulder, .rightWrist),
-                (.leftHip, .rightHip),
-                (.leftShoulder, .leftHip),
-                (.rightShoulder, .rightHip),
-                (.leftHip, .leftKnee),
-                (.rightHip, .rightKnee),
-                (.rightKnee, .rightAnkle)
-            ]
-            
-            for (startJoint, endJoint) in jointConnections {
-                if let startPoint = try? observation.recognizedPoint(startJoint),
-                   let endPoint = try? observation.recognizedPoint(endJoint),
-                   startPoint.confidence > 0.5, endPoint.confidence > 0.5 {
-                    
-                    let startX = imageOrigin.x + startPoint.location.x * scaledImageSize.width
-                    let startY = imageOrigin.y + (1 - startPoint.location.x) * scaledImageSize.height
-                    let endX = imageOrigin.x + endPoint.location.x * scaledImageSize.width
-                    let endY = imageOrigin.y + (1 - endPoint.location.y) * scaledImageSize.height
-                    
-                    let linePath = UIBezierPath()
-                    linePath.move(to: CGPoint(x: startX, y: startY))
-                    linePath.addLine(to: CGPoint(x: endX, y: endY))
-                    
-                    let shapeLayer = CAShapeLayer()
-                    shapeLayer.path = linePath.cgPath
-                    shapeLayer.strokeColor = UIColor.red.cgColor
-                    shapeLayer.lineWidth = 2.0
-                    
-                    imageView.layer.addSublayer(shapeLayer)
-                    
-                }
-            }
-        }
-    }
-}
-
+/// A view that displays an image and overlays a human pose skeleton detected by the Vision framework.
 struct PoseRecognitionView: View {
     
+    /// The state that holds the image with the drawn skeleton.
+    /// Updating this state will trigger a view redraw.
+    @State private var poseImage: UIImage?
     
+    /// The original image to be processed.
+    private let originalUIImage = UIImage(resource: .image1)
     
     var body: some View {
-               ViewController()
+        VStack {
+            if let poseImage = poseImage {
+                // Display the processed image using SwiftUI's Image view.
+                Image(uiImage: poseImage)
+                    .resizable()
+                    .scaledToFit()
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else {
+                // Show a placeholder while the image is being processed.
+                ProgressView("Detecting Pose...")
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            }
+        }
+        .onAppear {
+            // Start the pose detection when the view first appears.
+            detectHumanBodyPose(in: originalUIImage)
+        }
+    }
+    
+    /// Performs a human body pose detection request using the Vision framework.
+    private func detectHumanBodyPose(in image: UIImage) {
+        guard let cgImage = image.cgImage else { return }
+        
+        // Create the Vision request.
+        let request = VNDetectHumanBodyPoseRequest { request, error in
+            // Handle the completion on the main thread.
+            DispatchQueue.main.async {
+                guard let results = request.results as? [VNHumanBodyPoseObservation] else {
+                    print("No human detected.")
+                    return
+                }
+                
+                // Draw the skeleton and update the state.
+                self.poseImage = self.drawBodyJoints(from: results, on: image)
+            }
+        }
+        
+        // Perform the request on a background thread to avoid blocking the UI.
+        let handler = VNImageRequestHandler(cgImage: cgImage, options: [:])
+        DispatchQueue.global(qos: .userInitiated).async {
+            do {
+                try handler.perform([request])
+            } catch {
+                print("Failed to perform Vision request: \(error.localizedDescription)")
+            }
+        }
+    }
+    
+    /// Draws the detected body joints and connections onto a new UIImage.
+    private func drawBodyJoints(from observations: [VNHumanBodyPoseObservation], on originalImage: UIImage) -> UIImage {
+        // Define the connections between body joints.
+        let jointConnections: [(VNHumanBodyPoseObservation.JointName, VNHumanBodyPoseObservation.JointName)] = [
+            (.leftShoulder, .rightShoulder), (.leftShoulder, .leftElbow), (.leftElbow, .leftWrist),
+            (.rightShoulder, .rightElbow), (.rightShoulder, .rightWrist),
+            (.leftHip, .rightHip), (.leftShoulder, .leftHip), (.rightShoulder, .rightHip),
+            (.leftHip, .leftKnee), (.rightHip, .rightKnee),
+            (.leftKnee, .leftAnkle), (.rightKnee, .rightAnkle)
+        ]
+        
+        // Use UIGraphicsImageRenderer to create a new image.
+        let renderer = UIGraphicsImageRenderer(size: originalImage.size)
+        
+        return renderer.image { context in
+            // Draw the original image first.
+            originalImage.draw(at: .zero)
+            
+            // Set up the drawing context for the lines.
+            context.cgContext.setStrokeColor(UIColor.red.cgColor)
+            context.cgContext.setLineWidth(5.0)
+            
+            for observation in observations {
+                for (startJoint, endJoint) in jointConnections {
+                    if let startPoint = try? observation.recognizedPoint(startJoint),
+                       let endPoint = try? observation.recognizedPoint(endJoint),
+                       startPoint.confidence > 0.5, endPoint.confidence > 0.5 {
+                        
+                        // Convert normalized coordinates from Vision to pixel coordinates.
+                        let startLocation = VNImagePointForNormalizedPoint(startPoint.location, Int(originalImage.size.width), Int(originalImage.size.height))
+                        let endLocation = VNImagePointForNormalizedPoint(endPoint.location, Int(originalImage.size.width), Int(originalImage.size.height))
+                        
+                        // Draw the line segment.
+                        context.cgContext.move(to: startLocation)
+                        context.cgContext.addLine(to: endLocation)
+                        context.cgContext.strokePath()
+                    }
+                }
+            }
+        }
     }
 }
 
