@@ -3,14 +3,14 @@ import SwiftUI
 
 
 struct ContentView: View {
-    @State private var images = [CGImage]()
+//    @State private var images = []
     
     var body: some View {
         HStack{
-//            LiveViews()
-//            StaticViews(image: )
-//            PhotoPickerView(selectedImages: $images)
-//            StaticViews(image:images)
+            LiveViews()
+           // StaticViews(image: <#CGImage#>)
+            PhotoPickerView()
+//           StaticViews(image:images)
         }
     }
 }
