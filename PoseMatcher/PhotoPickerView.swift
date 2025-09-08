@@ -200,28 +200,31 @@ import SwiftUI
 import PhotosUI
 
 struct PhotoPickerView: View {
-    @State private var selectedItems = [PhotosPickerItem]()
-    @Binding var selectedImages: [Image]
-    @State private var selectedCGImages: [CGImage]
+    @State  var selectedItems = [PhotosPickerItem]() //private
+//    @State var cgImage: CGImage
+//    @Binding var selectedImages: [Image]
+    @State  var selectedCGImages: [CGImage] = [] //private
     
     var body: some View {
         NavigationStack {
             ScrollView {
-                LazyVStack {
-                    ForEach(0..<selectedImages.count, id: \.self) { i in
-                        selectedImages[i]
-                            .resizable()
-                            .scaledToFit()
-                            .frame(width: 300, height: 300)
-                    }
+//                LazyVStack {
+//                    ForEach(0..<selectedImages.count, id: \.self) { i in
+//                        selectedImages[i]
+//                            .resizable()
+//                            .scaledToFit()
+//                            .frame(width: 300, height: 300)
+//                    }
+//                }
+                if selectedCGImages.count != 0 {
+                    Image(uiImage: UIImage(cgImage: selectedCGImages[0]))
+                } else {
+                    PhotosPicker("Select image", selection: $selectedItems, matching: .images)
                 }
-            }
-            .toolbar {
-                PhotosPicker("Select images", selection: $selectedItems, matching: .images)
             }
             .onChange(of: selectedItems) {
                 Task {
-                    selectedImages.removeAll()
+                    selectedCGImages.removeAll()
                     
                     for item in selectedItems {
                         if let data = try? await item.loadTransferable(type: Data.self),
@@ -234,4 +237,8 @@ struct PhotoPickerView: View {
             }
         }
     }
+}
+
+#Preview {
+    PhotoPickerView()
 }
