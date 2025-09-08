@@ -1,28 +1,21 @@
-//
-//  PoseEstimationModel.swift
-//  PoseMatcher
-//
-//  Created by Carsten Anand on 23/8/25.
-//
-
 import SwiftUI
 import Vision
 import AVFoundation
 import Observation
 
 // 1.
-struct BodyConnection: Identifiable {
+struct LiveBodyConnection: Identifiable {
     let id = UUID()
     let from: HumanBodyPoseObservation.JointName
     let to: HumanBodyPoseObservation.JointName
 }
 
 @Observable
-class PoseEstimationViewModel: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate {
+class LivePoseEstimationViewModel: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate {
 
     // 2.
     var detectedBodyParts: [HumanBodyPoseObservation.JointName: CGPoint] = [:]
-    var bodyConnections: [BodyConnection] = []
+    var bodyConnections: [LiveBodyConnection] = []
     
     override init() {
         super.init()
@@ -32,20 +25,20 @@ class PoseEstimationViewModel: NSObject, AVCaptureVideoDataOutputSampleBufferDel
     // 3.
     private func setupBodyConnections() {
         bodyConnections = [
-            BodyConnection(from: .nose, to: .neck),
-            BodyConnection(from: .neck, to: .rightShoulder),
-            BodyConnection(from: .neck, to: .leftShoulder),
-            BodyConnection(from: .rightShoulder, to: .rightHip),
-            BodyConnection(from: .leftShoulder, to: .leftHip),
-            BodyConnection(from: .rightHip, to: .leftHip),
-            BodyConnection(from: .rightShoulder, to: .rightElbow),
-            BodyConnection(from: .rightElbow, to: .rightWrist),
-            BodyConnection(from: .leftShoulder, to: .leftElbow),
-            BodyConnection(from: .leftElbow, to: .leftWrist),
-            BodyConnection(from: .rightHip, to: .rightKnee),
-            BodyConnection(from: .rightKnee, to: .rightAnkle),
-            BodyConnection(from: .leftHip, to: .leftKnee),
-            BodyConnection(from: .leftKnee, to: .leftAnkle)
+            LiveBodyConnection(from: .nose, to: .neck),
+            LiveBodyConnection(from: .neck, to: .rightShoulder),
+            LiveBodyConnection(from: .neck, to: .leftShoulder),
+            LiveBodyConnection(from: .rightShoulder, to: .rightHip),
+            LiveBodyConnection(from: .leftShoulder, to: .leftHip),
+            LiveBodyConnection(from: .rightHip, to: .leftHip),
+            LiveBodyConnection(from: .rightShoulder, to: .rightElbow),
+            LiveBodyConnection(from: .rightElbow, to: .rightWrist),
+            LiveBodyConnection(from: .leftShoulder, to: .leftElbow),
+            LiveBodyConnection(from: .leftElbow, to: .leftWrist),
+            LiveBodyConnection(from: .rightHip, to: .rightKnee),
+            LiveBodyConnection(from: .rightKnee, to: .rightAnkle),
+            LiveBodyConnection(from: .leftHip, to: .leftKnee),
+            LiveBodyConnection(from: .leftKnee, to: .leftAnkle)
         ]
     }
 

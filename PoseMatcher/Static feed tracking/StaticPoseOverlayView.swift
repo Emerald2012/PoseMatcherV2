@@ -1,11 +1,18 @@
+//
+//  PoseOverlayView.swift
+//  PoseMatcher
+//
+//  Created by Carsten Anand on 23/8/25.
+//
+
 import SwiftUI
 import Vision
 
-struct PoseOverlayView: View {
+struct StaticPoseOverlayView: View {
 
     // 1.
     let bodyParts: [HumanBodyPoseObservation.JointName: CGPoint]
-    let connections: [LiveBodyConnection]
+    let connections: [StaticBodyConnection]
     
     var body: some View {
         GeometryReader { geometry in

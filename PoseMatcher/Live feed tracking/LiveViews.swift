@@ -10,9 +10,9 @@ import AVFoundation
 import Vision
 
 // 1.
-struct Views: View {
+struct LiveViews: View {
     @State private var cameraViewModel = CameraViewModel()
-    @State private var poseViewModel = PoseEstimationViewModel()
+    @State private var poseViewModel = LivePoseEstimationViewModel()
     
     var body: some View {
         // 2.
